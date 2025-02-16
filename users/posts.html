@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>帖子列表</title>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -135,6 +137,11 @@
         window.location.href = 'index.html';
         return;
     }
+    // 记录页面访问
+    handlePostInteraction('category_view', 'category_' + category, {
+        category,
+        userGroup
+    });
     // 加载该分类的帖子
     loadPosts(category, userGroup);
 };
@@ -310,10 +317,7 @@ function handlePostClick(post) {
         sessionStorage.setItem('currentPost', JSON.stringify(post));
         
         // 记录点击交互
-        UserInteractionSystem.logInteraction(post.id, 'post_click', {
-            category: sessionStorage.getItem('selectedCategory'),
-            group: sessionStorage.getItem('userGroup')
-        });
+        handlePostInteraction('post_click', post.id);
         
         // 跳转到详情页
         window.location.href = 'post-detail.html';
@@ -353,6 +357,38 @@ function filterPostsByGroup(posts) {
     );
 }
 
+function handlePostInteraction(type, postId, details = {}) {
+    try {
+        const userId = UserInteractionSystem.generateUserId();
+        const userGroup = sessionStorage.getItem('userGroup');
+        const category = sessionStorage.getItem('selectedCategory');
+
+        // 创建交互数据
+        const interaction = {
+            userId,
+            userGroup,
+            postId,
+            category,
+            type,
+            details,
+            timestamp: new Date().toISOString()
+        };
+
+        // 本地存储
+        let interactions = JSON.parse(localStorage.getItem('userInteractions')) || [];
+        interactions.push(interaction);
+        localStorage.setItem('userInteractions', JSON.stringify(interactions));
+
+        // 提交到 Firestore
+        window.firestoreDB.collection('interactions').add(interaction)
+            .catch(error => console.error('Firestore 提交失败:', error));
+
+        return true;
+    } catch (error) {
+        console.error('处理交互失败:', error);
+        return false;
+    }
+}
     </script>
 </body>
 </html>

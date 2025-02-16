@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>帖子详情</title>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -499,76 +501,71 @@
     }
     // 提交新评论
     function submitComment() {
-    try {
-        const commentInput = document.getElementById('commentInput');
-        const content = commentInput.value.trim();
-        
-        if (!content) {
-            alert('请输入评论内容！');
-            return;
-        }
+    const commentInput = document.getElementById('commentInput');
+    const content = commentInput.value.trim();
+    
+    if (!content) {
+        alert('请输入评论内容！');
+        return;
+    }
 
-        // 记录交互
-        UserInteractionSystem.logInteraction(currentPost.id, 'comment', {
-            text: content
-        });
-
-        // 创建新评论
-        const newComment = {
-            id: Date.now(),
-            author: '访客用户',
-            avatar: 'https://via.placeholder.com/40',
-            content: content,
-            likes: 0,
-            userLiked: false,
-            timestamp: new Date().toISOString()
-        };
-
-        // 更新评论列表
-        if (!currentPost.comments) {
-            currentPost.comments = [];
-        }
-        currentPost.comments.push(newComment);
-
-        // 更新存储
-        const category = sessionStorage.getItem('selectedCategory');
-        let posts = JSON.parse(localStorage.getItem('posts'));
-        if (posts && category) {
-            const postIndex = posts[category].findIndex(post => post.id === currentPost.id);
-            if (postIndex !== -1) {
-                posts[category][postIndex] = currentPost;
-                localStorage.setItem('posts', JSON.stringify(posts));
-                sessionStorage.setItem('currentPost', JSON.stringify(currentPost));
-            }
-        }
-
-        // 清空输入框并重新加载评论
+    if(handlePostInteraction('comment', { content })) {
+        // 更新UI
         commentInput.value = '';
         loadExistingComments();
-        
         alert('评论发表成功！');
-    } catch (error) {
-        console.error('Error submitting comment:', error);
-        alert('评论发表失败，请稍后重试');
     }
 }
 
+function handlePostInteraction(type, details = {}) {
+    try {
+        const post = JSON.parse(sessionStorage.getItem('currentPost'));
+        const userId = UserInteractionSystem.generateUserId();
+        const userGroup = sessionStorage.getItem('userGroup');
+
+        // 创建交互数据
+        const interaction = {
+            userId,
+            userGroup,
+            postId: post.id,
+            type,
+            details,
+            timestamp: new Date().toISOString()
+        };
+
+        // 本地存储
+        let interactions = JSON.parse(localStorage.getItem('userInteractions')) || [];
+        interactions.push(interaction);
+        localStorage.setItem('userInteractions', JSON.stringify(interactions));
+
+        // 提交到 Firestore
+        window.firestoreDB.collection('interactions').add(interaction)
+            .catch(error => console.error('Firestore 提交失败:', error));
+            
+        return true;
+    } catch (error) {
+        console.error('处理交互失败:', error);
+        return false;
+    }
+}
 
 function toggleLike() {
     const likeButton = document.getElementById('likeButton');
     const likeCount = document.getElementById('likeCount');
     const hasLiked = UserInteractionSystem.hasInteracted(currentPost.id, 'like');
     
-    if (hasLiked) {
-        // 取消点赞
-        UserInteractionSystem.removeInteraction(currentPost.id, 'like');
-        likeButton.classList.remove('active');
-        likeCount.textContent = Math.max(0, parseInt(likeCount.textContent) - 1);
-    } else {
+    if (!hasLiked) {
         // 添加点赞
-        UserInteractionSystem.logInteraction(currentPost.id, 'like');
-        likeButton.classList.add('active');
-        likeCount.textContent = parseInt(likeCount.textContent) + 1;
+        if(handlePostInteraction('like')) {
+            likeButton.classList.add('active');
+            likeCount.textContent = parseInt(likeCount.textContent) + 1;
+        }
+    } else {
+        // 取消点赞
+        if(handlePostInteraction('unlike')) {
+            likeButton.classList.remove('active');
+            likeCount.textContent = Math.max(0, parseInt(likeCount.textContent) - 1);
+        }
     }
 }
 
@@ -577,53 +574,35 @@ function toggleFavorite() {
     const favoriteCount = document.getElementById('favoriteCount');
     const hasFavorited = UserInteractionSystem.hasInteracted(currentPost.id, 'favorite');
     
-    if (hasFavorited) {
-        // 取消收藏
-        UserInteractionSystem.removeInteraction(currentPost.id, 'favorite');
-        favoriteButton.classList.remove('active');
-        favoriteCount.textContent = Math.max(0, parseInt(favoriteCount.textContent) - 1);
-    } else {
+    if (!hasFavorited) {
         // 添加收藏
-        UserInteractionSystem.logInteraction(currentPost.id, 'favorite');
-        favoriteButton.classList.add('active');
-        favoriteCount.textContent = parseInt(favoriteCount.textContent) + 1;
-    }
-}
-
-function updateCommentCount() {
-    const commentCount = document.getElementById('commentCount');
-    if (currentPost.comments) {
-        commentCount.textContent = currentPost.comments.length;
+        if(handlePostInteraction('favorite')) {
+            favoriteButton.classList.add('active');
+            favoriteCount.textContent = parseInt(favoriteCount.textContent) + 1;
+        }
     } else {
-        commentCount.textContent = '0';
+        // 取消收藏
+        if(handlePostInteraction('unfavorite')) {
+            favoriteButton.classList.remove('active');
+            favoriteCount.textContent = Math.max(0, parseInt(favoriteCount.textContent) - 1);
+        }
     }
 }
-
 
 function markAsAI(isAI) {
-    UserInteractionSystem.logInteraction(currentPost.id, 'ai_check', { isAI: isAI });
-    
-    // 更新 AI 判断按钮的视觉效果
-    const aiButtons = document.querySelectorAll('.ai-check button');
-    aiButtons.forEach(button => {
-        const isYesButton = button.getAttribute('onclick') === 'markAsAI(true)';
-        if ((isYesButton && isAI) || (!isYesButton && !isAI)) {
-            button.classList.add('selected');
-        } else {
-            button.classList.remove('selected');
-        }
-    });
-    
-    alert('感谢你的反馈！');
+    if(handlePostInteraction('ai_check', { isAI })) {
+        // 更新UI
+        const aiButtons = document.querySelectorAll('.ai-check button');
+        aiButtons.forEach(button => {
+            const isYesButton = button.getAttribute('onclick') === 'markAsAI(true)';
+            button.classList.toggle('selected', (isYesButton && isAI) || (!isYesButton && !isAI));
+        });
+        
+        alert('感谢你的反馈！');
+    }
 }
 
-
-
-        function focusComment() {
-            document.getElementById('commentInput').focus();
-        }
-
-        function toggleCommentLike(commentId) {
+function toggleCommentLike(commentId) {
     let comment = findComment(commentId);
     if (!comment) return;
 
@@ -650,17 +629,38 @@ function markAsAI(isAI) {
 }
 
 function saveCurrentPost() {
-    const category = sessionStorage.getItem('selectedCategory');
-    let posts = JSON.parse(localStorage.getItem('posts'));
-    if (posts && category) {
-        const postIndex = posts[category].findIndex(post => post.id === currentPost.id);
-        if (postIndex !== -1) {
-            posts[category][postIndex] = currentPost;
-            localStorage.setItem('posts', JSON.stringify(posts));
-            sessionStorage.setItem('currentPost', JSON.stringify(currentPost));
+    // 不再直接修改帖子数据
+    const interactionData = {
+        postId: currentPost.id,
+        userId: UserInteractionSystem.generateUserId(),
+        timestamp: new Date().toISOString(),
+        likes: parseInt(document.getElementById('likeCount').textContent),
+        favorites: parseInt(document.getElementById('favoriteCount').textContent),
+        comments: currentPost.comments
+    };
+
+    // 存储交互数据
+    let interactions = JSON.parse(localStorage.getItem('postInteractions')) || [];
+    interactions.push(interactionData);
+    localStorage.setItem('postInteractions', JSON.stringify(interactions));
+}
+
+function checkForUpdates() {
+    const updates = JSON.parse(localStorage.getItem('postUpdates')) || {};
+    const lastCheck = localStorage.getItem('lastUpdateCheck') || '0';
+    
+    for (let postId in updates) {
+        if (updates[postId] > lastCheck) {
+            loadPost(); // 重新加载帖子数据
+            break;
         }
     }
+    
+    localStorage.setItem('lastUpdateCheck', new Date().toISOString());
 }
+
+// 定期检查更新
+setInterval(checkForUpdates, 30000); // 每30秒检查一次
 
 // 获取当前帖子的会话统计数据
 function getPostSessionStats(postId) {

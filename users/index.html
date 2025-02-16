@@ -1,10 +1,36 @@
 <!DOCTYPE html>
 <html lang="zh">
 <head>
+
+
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>内容实验</title>
     <script src="experiment-config.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-firestore.js"></script>
+    <script>
+        // 同样的 Firebase 配置（确保projectId等一致）
+        const firebaseConfig = {
+    apiKey: "AIzaSyCUp72tIZBypw-HgVhVQWN88egtH4uyuL0",
+    authDomain: "redbook-31e18.firebaseapp.com",
+    projectId: "redbook-31e18",
+    storageBucket: "redbook-31e18.firebasestorage.app",
+    messagingSenderId: "568218518846",
+    appId: "1:568218518846:web:aaa8eb53765749b856d86f",
+    measurementId: "G-WGQS7TLVTT"
+  };
+        firebase.initializeApp(firebaseConfig);
+      
+        // 只读同步逻辑（用户端专用）
+        const db = firebase.firestore();
+        db.collection("appData").onSnapshot(snapshot => {
+          snapshot.docChanges().forEach(change => {
+            const data = change.doc.data().value;
+            localStorage.setItem(change.doc.id, JSON.stringify(data));
+          });
+        });
+      </script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -215,6 +241,7 @@
     </div>
 
     <script>
+        
         // 添加实验系统对象，确保在其他代码之前定义
         const ExperimentSystem = {
             init: function() {
@@ -224,6 +251,7 @@
                 // 显示主内容
                 document.querySelector('.container').style.display = 'block';
             },
+            
             initializeExperiment: function() {
                 // 随机分配用户组
                 if (!localStorage.getItem('userGroup')) {
