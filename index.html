@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>内容实验</title>
+    <script src="experiment-config.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 40px;
+            font-size: 2.2em;
+        }
+
+        .category-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 30px;
+            margin-top: 30px;
+        }
+
+        .category-card {
+            background-color: white;
+            padding: 40px 30px;
+            border-radius: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .category-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .category-card h2 {
+            margin: 15px 0 0;
+            color: #333;
+            font-size: 1.8em;
+        }
+
+        .category-icon {
+            font-size: 3em;
+            margin-bottom: 15px;
+        }
+
+        /* 为每个类别添加特定样式 */
+        .category-card[onclick*="food"] {
+            background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 100%);
+        }
+
+        .category-card[onclick*="pets"] {
+            background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
+        }
+
+        .category-card[onclick*="beauty"] {
+            background: linear-gradient(135deg, #fbc2eb 0%, #a6c1ee 100%);
+        }
+
+        .category-card[onclick*="travel"] {
+            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .category-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+
+            .category-card {
+                padding: 30px 20px;
+            }
+
+            h1 {
+                font-size: 1.8em;
+                margin-bottom: 30px;
+            }
+        }
+
+        /* 添加图标 */
+        .category-card::before {
+            font-size: 2.5em;
+            margin-bottom: 15px;
+            display: block;
+        }
+
+        .category-card[onclick*="food"]::before {
+            content: "🍳";
+        }
+
+        .category-card[onclick*="pets"]::before {
+            content: "🐱";
+        }
+
+        .category-card[onclick*="beauty"]::before {
+            content: "💄";
+        }
+
+        .category-card[onclick*="travel"]::before {
+            content: "✈️";
+        }
+        .consent-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .consent-content {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow-y: auto;
+            width: 90%;
+        }
+        .consent-buttons {
+            margin-top: 20px;
+            text-align: center;
+        }
+        .consent-buttons button {
+            margin: 0 15px;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .consent-buttons button:first-child {
+            background: #4CAF50;
+            color: white;
+        }
+        .consent-buttons button:last-child {
+            background: #f44336;
+            color: white;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- 知情同意表单应该在最前面 -->
+    <div id="consentForm" class="consent-overlay" style="display: flex;">
+        <div class="consent-content">
+            <h2>实验知情同意书</h2>
+            <p>亲爱的参与者：</p>
+            <p>本研究旨在探究社交媒体内容的用户体验。您的参与将有助于我们更好地理解内容感知和互动行为。</p>
+            
+            <h3>实验说明：</h3>
+            <ul>
+                <li>预计用时：15-20分钟</li>
+                <li>任务：浏览内容并进行自然互动</li>
+                <li>数据收集：交互行为、浏览时间等</li>
+            </ul>
+
+            <h3>隐私保护：</h3>
+            <ul>
+                <li>所有数据将匿名处理</li>
+                <li>仅用于学术研究</li>
+                <li>不会收集个人身份信息</li>
+            </ul>
+
+            <div class="consent-buttons">
+                <button onclick="agreeConsent()">同意参与</button>
+                <button onclick="disagreeConsent()">拒绝参与</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主内容容器，默认隐藏 -->
+    <div class="container" style="display: none;">
+        <h1>请选择你感兴趣的内容分类</h1>
+        <div class="category-grid">
+            <div class="category-card" onclick="selectCategory('food')">
+                <h2>美食</h2>
+            </div>
+            <div class="category-card" onclick="selectCategory('pets')">
+                <h2>萌宠</h2>
+            </div>
+            <div class="category-card" onclick="selectCategory('beauty')">
+                <h2>美妆</h2>
+            </div>
+            <div class="category-card" onclick="selectCategory('travel')">
+                <h2>旅游</h2>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 添加实验系统对象，确保在其他代码之前定义
+        const ExperimentSystem = {
+            init: function() {
+                this.startTime = Date.now();
+                this.attachEventListeners();
+                this.initializeExperiment();
+                // 显示主内容
+                document.querySelector('.container').style.display = 'block';
+            },
+            initializeExperiment: function() {
+                // 随机分配用户组
+                if (!localStorage.getItem('userGroup')) {
+                    const userGroup = Math.random() < 0.5 ? 'A' : 'B';
+                    localStorage.setItem('userGroup', userGroup);
+                }
+
+                // 初始化实验数据结构
+                const experimentData = {
+                    startTime: new Date().toISOString(),
+                    userGroup: localStorage.getItem('userGroup'),
+                    interactions: []
+                };
+                localStorage.setItem('experimentData', JSON.stringify(experimentData));
+            },
+            attachEventListeners: function() {
+                // 添加页面可见性监听
+                document.addEventListener('visibilitychange', () => {
+                    if (document.hidden) {
+                        this.logEvent('page_hide');
+                    } else {
+                        this.logEvent('page_show');
+                    }
+                });
+            },
+            logEvent: function(eventType, details = {}) {
+                const experimentData = JSON.parse(localStorage.getItem('experimentData') || '{"interactions":[]}');
+                experimentData.interactions.push({
+                    timestamp: new Date().toISOString(),
+                    eventType,
+                    details
+                });
+                localStorage.setItem('experimentData', JSON.stringify(experimentData));
+            }
+        };
+
+        // 修改同意函数
+        function agreeConsent() {
+            localStorage.setItem('consentGiven', 'true');
+            localStorage.setItem('consentTimestamp', new Date().toISOString());
+            
+            // 隐藏知情同意表单
+            document.getElementById('consentForm').style.display = 'none';
+            
+            // 显示主内容
+            document.querySelector('.container').style.display = 'block';
+            
+            // 初始化实验系统
+            ExperimentSystem.init();
+            
+            // 记录同意事件
+            ExperimentSystem.logEvent('consent_given');
+        }
+
+        // 修改拒绝函数
+        function disagreeConsent() {
+            ExperimentSystem.logEvent('consent_rejected');
+            window.location.href = 'about:blank';
+        }
+
+        // 页面加载时的处理
+        document.addEventListener('DOMContentLoaded', function() {
+            // 清除localStorage（用于测试）
+            // localStorage.removeItem('consentGiven');
+            
+            // 设置初始显示状态
+            const hasConsent = localStorage.getItem('consentGiven') === 'true';
+            document.getElementById('consentForm').style.display = hasConsent ? 'none' : 'flex';
+            document.querySelector('.container').style.display = hasConsent ? 'block' : 'none';
+            
+            // 如果已经同意，初始化实验系统
+            if (hasConsent) {
+                ExperimentSystem.init();
+            }
+        });
+
+        // 初始化用户交互系统
+        const UserInteractionSystem = {
+            generateUserId: function() {
+                if (!sessionStorage.getItem('userId')) {
+                    const userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                    sessionStorage.setItem('userId', userId);
+                }
+                return sessionStorage.getItem('userId');
+            },
+
+            logInteraction: function(category, interactionType, details = {}) {
+                const userId = this.generateUserId();
+                const userGroup = sessionStorage.getItem('userGroup');
+                const interaction = {
+                    userId,
+                    userGroup,
+                    category,
+                    interactionType,
+                    details,
+                    timestamp: new Date().toISOString()
+                };
+
+                let interactions = JSON.parse(localStorage.getItem('userInteractions')) || [];
+                interactions.push(interaction);
+                localStorage.setItem('userInteractions', JSON.stringify(interactions));
+            }
+        };
+
+        // 选择分类函数
+        function selectCategory(category) {
+            try {
+                console.log('Selecting category:', category); // 调试信息
+
+                // 随机分配用户到A组或B组
+                const group = Math.random() < 0.5 ? 'A' : 'B';
+                
+                // 存储用户信息和选择
+                sessionStorage.setItem('selectedCategory', category);
+                sessionStorage.setItem('userGroup', group);
+                
+                // 记录用户选择
+                UserInteractionSystem.logInteraction(category, 'category_select', {
+                    group: group
+                });
+
+                console.log('User assigned to group:', group); // 调试信息
+                
+                // 跳转到帖子列表页面
+                window.location.href = 'posts.html';
+            } catch (error) {
+                console.error('Error in selectCategory:', error);
+            }
+        }
+
+        // 页面加载时初始化
+        window.onload = function() {
+            try {
+                console.log('Initializing page...'); // 调试信息
+                
+                // 生成用户ID
+                const userId = UserInteractionSystem.generateUserId();
+                console.log('Generated userId:', userId); // 调试信息
+                
+                // 清除之前的选择（如果需要的话）
+                sessionStorage.removeItem('selectedCategory');
+                sessionStorage.removeItem('userGroup');
+                
+                // 记录页面访问
+                UserInteractionSystem.logInteraction('index', 'page_view');
+            } catch (error) {
+                console.error('Error during initialization:', error);
+            }
+        };
+        // 在页面加载时随机分配用户组
+         // 检查是否已同意
+         if (!localStorage.getItem('consentGiven')) {
+            document.getElementById('consentForm').style.display = 'flex';
+        } else {
+            document.getElementById('consentForm').style.display = 'none';
+        }
+
+        function agreeConsent() {
+            localStorage.setItem('consentGiven', 'true');
+            localStorage.setItem('consentTimestamp', new Date().toISOString());
+            ExperimentSystem.logEvent('consent_given');
+            document.getElementById('consentForm').style.display = 'none';
+            ExperimentSystem.init();
+        }
+
+        function disagreeConsent() {
+            window.location.href = 'about:blank';
+        }
+
+        // 在页面加载时初始化实验
+        function initializeExperiment() {
+            // 随机分配用户组
+            let userGroup = localStorage.getItem('userGroup');
+            if (!userGroup) {
+                userGroup = Math.random() < 0.5 ? 'A' : 'B';
+                localStorage.setItem('userGroup', userGroup);
+            }
+
+            // 初始化交互数据收集
+            let interactionData = {
+                startTime: new Date().toISOString(),
+                userGroup: userGroup,
+                viewTime: 0,
+                scrollDepth: 0,
+                interactionCount: 0,
+                engagementMetrics: {
+                    likes: 0,
+                    comments: 0,
+                    shares: 0,
+                    timeSpentPerPost: 0,
+                    scrollPause: 0
+                }
+            };
+            localStorage.setItem('currentInteraction', JSON.stringify(interactionData));
+        }
+
+        // 添加退出问卷监听
+        window.addEventListener('beforeunload', function(e) {
+            if(!localStorage.getItem('completedExitSurvey')) {
+                showExitSurvey();
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
+
+        // 更新交互数据的函数
+        function updateInteractionData(type, value) {
+            let data = JSON.parse(localStorage.getItem('currentInteraction'));
+            switch(type) {
+                case 'viewTime':
+                    data.viewTime += value;
+                    break;
+                case 'scroll':
+                    data.scrollDepth = Math.max(data.scrollDepth, value);
+                    break;
+                case 'interaction':
+                    data.interactionCount++;
+                    break;
+            }
+            localStorage.setItem('currentInteraction', JSON.stringify(data));
+        }
+
+        // 每分钟更新浏览时间
+        setInterval(() => {
+            updateInteractionData('viewTime', 60);
+        }, 60000);
+
+        // 监听滚动
+        window.addEventListener('scroll', function() {
+            const scrollPercent = (window.scrollY / (document.documentElement.scrollHeight - window.innerHeight)) * 100;
+            updateInteractionData('scroll', scrollPercent);
+        });
+
+        window.addEventListener('load', function() {
+    // 检查用户组分配
+    let userGroup = localStorage.getItem('userGroup');
+    if (!userGroup) {
+        userGroup = Math.random() < 0.5 ? 'A' : 'B';
+        localStorage.setItem('userGroup', userGroup);
+    }
+
+    // 获取所有帖子
+    const allPosts = JSON.parse(localStorage.getItem('posts')) || {};
+    
+    // 根据配置选择要展示的帖子
+    const selectedPosts = selectPostsForUser(userGroup, allPosts);
+    
+    // 随机打乱展示顺序
+    const shuffledPosts = randomizePosts(selectedPosts);
+    
+    // 展示帖子
+    displayPosts(shuffledPosts);
+});
+
+function selectPostsForUser(group, allPosts) {
+    const config = experimentConfig.content.groupSetup[group];
+    let selectedPosts = [];
+    
+    if (group === 'A') {
+        // A组只选择人工版本
+        selectedPosts = selectHumanPosts(allPosts, config.postsCount);
+    } else {
+        // B组混合选择
+        const humanCount = Math.floor(config.postsCount * config.ratio.human);
+        const aiCount = config.postsCount - humanCount;
+        
+        const humanPosts = selectHumanPosts(allPosts, humanCount);
+        const aiPosts = selectAIPosts(allPosts, aiCount, humanPosts);
+        
+        selectedPosts = [...humanPosts, ...aiPosts];
+    }
+    
+    return selectedPosts;
+}
+
+function selectHumanPosts(allPosts, count) {
+    let humanPosts = [];
+    // 从每个分类中选择人工帖子
+    Object.values(allPosts).forEach(categoryPosts => {
+        humanPosts = [...humanPosts, 
+            ...categoryPosts.filter(post => post.version === 'human')];
+    });
+    
+    // 随机选择指定数量
+    return shuffleArray(humanPosts).slice(0, count);
+}
+
+function selectAIPosts(allPosts, count, selectedHumanPosts) {
+    // 选择与已选人工帖子对应的AI版本
+    const aiPosts = [];
+    selectedHumanPosts.forEach(humanPost => {
+        const aiVersion = findAIVersion(allPosts, humanPost.id);
+        if (aiVersion) {
+            aiPosts.push(aiVersion);
+        }
+    });
+    
+    return aiPosts;
+}
+
+function shuffleArray(array) {
+    return array.sort(() => Math.random() - 0.5);
+}
+    </script>
+</body>
+</html>
+

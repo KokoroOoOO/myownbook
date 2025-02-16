@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>帖子详情</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 10px;
+        }
+        .post-image {
+            width: 100%;
+            max-height: 400px;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+        .author-info {
+            display: flex;
+            align-items: center;
+            margin: 20px 0;
+        }
+        .author-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .interaction-bar {
+            display: flex;
+            justify-content: space-around;
+            padding: 20px 0;
+            border-top: 1px solid #eee;
+            border-bottom: 1px solid #eee;
+        }
+        .interaction-button {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            border: none;
+            background: none;
+            color: #666;
+        }
+        .interaction-button.active {
+            color: #ff2442;
+        }
+      
+        .existing-comments {
+        margin-bottom: 30px;
+        }
+        
+        
+    .reply-input-area {
+        margin: 10px 0 10px 55px;
+        display: none;
+    }
+
+    .reply-input {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin-bottom: 8px;
+    }
+
+    .replies-container {
+        margin-left: 55px;
+        border-left: 2px solid #f0f0f0;
+        padding-left: 15px;
+    }
+
+    .reply-item {
+        margin: 10px 0;
+        padding: 8px;
+        background: #f9f9f9;
+        border-radius: 4px;
+    }
+    .comments-section {
+    margin-top: 20px;
+    padding: 20px;
+}
+
+.comment-input-area {
+    margin: 20px 0;
+}
+
+.comment-input {
+    width: 100%;
+    min-height: 100px;
+    padding: 10px;
+    margin-bottom: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    resize: vertical;
+}
+.comment-item {
+    background: #f8f8f8;
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 8px;
+}
+
+.comment-header {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.comment-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    margin-right: 10px;
+}
+
+.comment-author {
+    font-weight: bold;
+}
+
+.comment-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 10px;
+    color: #666;
+    font-size: 0.9em;
+}
+
+.comment-action-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px 10px;
+    border-radius: 4px;
+    transition: all 0.3s ease;
+}
+
+
+.comment-action-btn:hover {
+    background: #f0f0f0;
+}
+
+.comment-action-btn.liked {
+    color: #ff4757;
+}
+
+.comment-likes-count {
+    margin-left: 5px;
+}
+
+.no-comments {
+    text-align: center;
+    color: #666;
+    padding: 20px;
+}
+        .ai-check {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #f8f8f8;
+            border-radius: 5px;
+        }
+        .ai-check button {
+    padding: 8px 15px;
+    margin: 0 5px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.ai-check button.selected {
+    background: #4CAF50;
+    color: white;
+    border-color: #4CAF50;
+}
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="postContent"></div>
+        <div class="interaction-bar">
+            <button class="interaction-button" id="likeButton" onclick="toggleLike()">
+                ❤️ <span id="likeCount">0</span>
+            </button>
+            <button class="interaction-button" id="favoriteButton" onclick="toggleFavorite()">
+                ⭐ <span id="favoriteCount">0</span>
+            </button>
+            <button class="interaction-button" onclick="focusComment()">
+                💬 评论
+            </button>
+        </div>
+        <div class="ai-check">
+            <p>你认为这是AI生成的内容吗？</p>
+            <button onclick="markAsAI(true)">是</button>
+            <button onclick="markAsAI(false)">否</button>
+        </div>
+        <div class="comments-section">
+            <h3>评论 (<span id="commentCount">0</span>)</h3>
+    <div class="existing-comments" id="existingComments">
+        <!-- 已有评论将在这里显示 -->
+    </div>
+    <div class="comment-input-area">
+        <textarea class="comment-input" id="commentInput" placeholder="写下你的评论..."></textarea>
+        <button onclick="submitComment()">发表评论</button>
+     </div>
+            
+    </div>
+
+    <script>
+        const UserInteractionSystem = {
+    generateUserId: function() {
+        if (!sessionStorage.getItem('userId')) {
+            const userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            sessionStorage.setItem('userId', userId);
+        }
+        return sessionStorage.getItem('userId');
+    },
+
+    logInteraction: function(postId, interactionType, details = {}) {
+        const userId = this.generateUserId();
+        const userGroup = sessionStorage.getItem('userGroup');
+        const interaction = {
+            userId,
+            userGroup,
+            postId,
+            interactionType,
+            details,
+            timestamp: new Date().toISOString()
+        };
+
+        let interactions = JSON.parse(localStorage.getItem('userInteractions')) || [];
+        interactions.push(interaction);
+        localStorage.setItem('userInteractions', JSON.stringify(interactions));
+    },
+
+    hasInteracted: function(postId, interactionType) {
+        const userId = this.generateUserId();
+        const interactions = JSON.parse(localStorage.getItem('userInteractions')) || [];
+        return interactions.some(i => 
+            i.userId === userId && 
+            i.postId === postId && 
+            i.interactionType === interactionType
+        );
+    },
+
+    removeInteraction: function(postId, interactionType) {
+        const userId = this.generateUserId();
+        let interactions = JSON.parse(localStorage.getItem('userInteractions')) || [];
+        interactions = interactions.filter(i => 
+            !(i.userId === userId && i.postId === postId && i.interactionType === interactionType)
+        );
+        localStorage.setItem('userInteractions', JSON.stringify(interactions));
+    }
+};
+        let currentPost;
+       
+
+        function loadPost() {
+    try {
+        currentPost = JSON.parse(sessionStorage.getItem('currentPost'));
+        console.log('Loading post:', currentPost); // 调试信息
+
+        if (!currentPost) {
+            console.error('No post data found in sessionStorage');
+            return;
+        }
+
+        const postContent = document.getElementById('postContent');
+        
+        postContent.innerHTML = `
+            <img src="${currentPost.image || ''}" class="post-image" alt="帖子图片" onerror="this.src='https://via.placeholder.com/400'">
+            <div class="author-info">
+                <img src="${currentPost.authorAvatar || 'https://via.placeholder.com/40'}" class="author-avatar" alt="作者头像">
+                <span>${currentPost.author || '匿名用户'}</span>
+            </div>
+            <h1>${currentPost.title || '无标题'}</h1>
+            <p>${currentPost.content || '无内容'}</p>
+        `;
+
+        // 更新点赞和收藏数
+        document.getElementById('likeCount').textContent = currentPost.likes || 0;
+        document.getElementById('favoriteCount').textContent = currentPost.favorites || 0;
+
+        // 加载评论
+        loadExistingComments();
+    } catch (error) {
+        console.error('Error loading post:', error);
+    }
+}
+
+
+    
+
+    function loadExistingComments() {
+        const commentsContainer = document.getElementById('existingComments');
+        const commentCount = document.getElementById('commentCount');
+        
+        if (currentPost.comments && currentPost.comments.length > 0) {
+            commentCount.textContent = currentPost.comments.length;
+            commentsContainer.innerHTML = currentPost.comments.map(comment => `
+                <div class="comment-item" data-comment-id="${comment.id}">
+                    <div class="comment-header">
+                        <img src="${comment.avatar}" class="comment-avatar" alt="评论者头像">
+                        <span class="comment-author">${comment.author}</span>
+                    </div>
+                    <div class="comment-content">
+                        <p>${comment.content}</p>
+                        <div class="comment-meta">
+                            <span>${formatDate(comment.timestamp)}</span>
+                            <div class="comment-actions">
+                                <button class="comment-action-btn ${comment.userLiked ? 'liked' : ''}" 
+                                        onclick="toggleCommentLike(${comment.id})">
+                                    ❤️ <span class="comment-likes-count">${comment.likes || 0}</span>
+                                </button>
+                                <button class="comment-action-btn" onclick="showReplyInput(${comment.id})">
+                                    💬 回复
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="reply-input-area" id="replyInput-${comment.id}">
+                        <textarea class="reply-input" placeholder="写下你的回复..."></textarea>
+                        <button onclick="submitReply(${comment.id})">发送</button>
+                    </div>
+                    <div class="replies-container" id="replies-${comment.id}">
+                        ${(comment.replies || []).map(reply => createReplyHTML(reply)).join('')}
+                    </div>
+                </div>
+            `).join('');
+        } else {
+            commentCount.textContent = '0';
+            commentsContainer.innerHTML = '<p class="no-comments">暂无评论</p>';
+        }
+    }
+
+    function createReplyHTML(reply) {
+        return `
+            <div class="reply-item" data-reply-id="${reply.id}">
+                <div class="comment-header">
+                    <img src="${reply.avatar}" class="comment-avatar" alt="回复者头像">
+                    <span class="comment-author">${reply.author}</span>
+                </div>
+                <div class="comment-content">
+                    <p>${reply.content}</p>
+                    <div class="comment-meta">
+                        <span>${formatDate(reply.timestamp)}</span>
+                        <button class="comment-action-btn ${reply.userLiked ? 'liked' : ''}" 
+                                onclick="toggleCommentLike(${reply.id})">
+                            ❤️ <span class="comment-likes-count">${reply.likes || 0}</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function showReplyInput(commentId) {
+        const replyInputArea = document.getElementById(`replyInput-${commentId}`);
+        if (!replyInputArea) return;
+        
+        // 隐藏其他所有回复框
+        document.querySelectorAll('.reply-input-area').forEach(el => {
+            if (el !== replyInputArea) {
+                el.style.display = 'none';
+            }
+        });
+        
+        // 切换当前回复框的显示状态
+        replyInputArea.style.display = replyInputArea.style.display === 'block' ? 'none' : 'block';
+    }
+
+    function submitReply(commentId) {
+        const replyInputArea = document.getElementById(`replyInput-${commentId}`);
+        const replyText = replyInputArea.querySelector('textarea').value.trim();
+        
+        if (!replyText) {
+            alert('请输入回复内容！');
+            return;
+        }
+
+        const newReply = {
+            id: Date.now(),
+            author: '访客用户',
+            avatar: 'https://via.placeholder.com/40',
+            content: replyText,
+            likes: 0,
+            userLiked: false,
+            timestamp: new Date().toISOString()
+        };
+
+        // 查找并更新评论
+        const comment = currentPost.comments.find(c => c.id === commentId);
+        if (comment) {
+            if (!comment.replies) comment.replies = [];
+            comment.replies.push(newReply);
+
+            // 更新存储
+            saveCurrentPost();
+
+            // 更新显示
+            const repliesContainer = document.getElementById(`replies-${commentId}`);
+            repliesContainer.insertAdjacentHTML('beforeend', createReplyHTML(newReply));
+
+            // 清空并隐藏输入框
+            replyInputArea.querySelector('textarea').value = '';
+            replyInputArea.style.display = 'none';
+        }
+    }
+
+    function toggleCommentLike(id) {
+        // 查找评论或回复
+        let item = findCommentOrReply(id);
+        if (!item) return;
+
+        // 更新点赞状态
+        item.userLiked = !item.userLiked;
+        item.likes = item.userLiked ? (item.likes || 0) + 1 : Math.max(0, (item.likes || 0) - 1);
+
+        // 更新UI
+        const likeButton = document.querySelector(`[data-comment-id="${id}"] .comment-action-btn, [data-reply-id="${id}"] .comment-action-btn`);
+        const likesCount = likeButton.querySelector('.comment-likes-count');
+        
+        likeButton.classList.toggle('liked', item.userLiked);
+        likesCount.textContent = item.likes;
+
+        // 保存更改
+        saveCurrentPost();
+    }
+
+    function findCommentOrReply(id) {
+        // 先在评论中查找
+        let item = currentPost.comments.find(c => c.id === id);
+        if (item) return item;
+
+        // 在回复中查找
+        for (let comment of currentPost.comments) {
+            if (comment.replies) {
+                item = comment.replies.find(r => r.id === id);
+                if (item) return item;
+            }
+        }
+        return null;
+    }
+
+    function formatDate(timestamp) {
+        const date = new Date(timestamp);
+        return date.toLocaleString('zh-CN', {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+    function createCommentHTML(comment, isReply = false) {
+        return `
+            <div class="comment-item" data-comment-id="${comment.id}">
+                <img src="${comment.avatar}" class="comment-avatar" alt="评论者头像">
+                <div class="comment-content">
+                    <div class="comment-author">${comment.author}</div>
+                    <div class="comment-text">${comment.content}</div>
+                    <div class="comment-meta">
+                        <span>${formatDate(comment.timestamp)}</span>
+                    </div>
+                    <div class="comment-actions">
+                        <button class="comment-action-btn ${comment.userLiked ? 'liked' : ''}" 
+                                onclick="toggleCommentLike(${comment.id})">
+                            ❤️ <span class="comment-likes-count">${comment.likes || 0}</span>
+                        </button>
+                        ${!isReply ? `
+                            <button class="comment-action-btn" onclick="showReplyInput(${comment.id})">
+                                💬 回复
+                            </button>
+                        ` : ''}
+                    </div>
+                    ${!isReply ? `
+                        <div class="reply-input-area" id="replyInput-${comment.id}">
+                            <textarea class="reply-input" placeholder="写下你的回复..."></textarea>
+                            <button onclick="submitReply(${comment.id})">发送</button>
+                        </div>
+                        <div class="replies-container" id="replies-${comment.id}">
+                            ${(comment.replies || []).map(reply => createCommentHTML(reply, true)).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    }
+    // 提交新评论
+    function submitComment() {
+    try {
+        const commentInput = document.getElementById('commentInput');
+        const content = commentInput.value.trim();
+        
+        if (!content) {
+            alert('请输入评论内容！');
+            return;
+        }
+
+        // 记录交互
+        UserInteractionSystem.logInteraction(currentPost.id, 'comment', {
+            text: content
+        });
+
+        // 创建新评论
+        const newComment = {
+            id: Date.now(),
+            author: '访客用户',
+            avatar: 'https://via.placeholder.com/40',
+            content: content,
+            likes: 0,
+            userLiked: false,
+            timestamp: new Date().toISOString()
+        };
+
+        // 更新评论列表
+        if (!currentPost.comments) {
+            currentPost.comments = [];
+        }
+        currentPost.comments.push(newComment);
+
+        // 更新存储
+        const category = sessionStorage.getItem('selectedCategory');
+        let posts = JSON.parse(localStorage.getItem('posts'));
+        if (posts && category) {
+            const postIndex = posts[category].findIndex(post => post.id === currentPost.id);
+            if (postIndex !== -1) {
+                posts[category][postIndex] = currentPost;
+                localStorage.setItem('posts', JSON.stringify(posts));
+                sessionStorage.setItem('currentPost', JSON.stringify(currentPost));
+            }
+        }
+
+        // 清空输入框并重新加载评论
+        commentInput.value = '';
+        loadExistingComments();
+        
+        alert('评论发表成功！');
+    } catch (error) {
+        console.error('Error submitting comment:', error);
+        alert('评论发表失败，请稍后重试');
+    }
+}
+
+
+function toggleLike() {
+    const likeButton = document.getElementById('likeButton');
+    const likeCount = document.getElementById('likeCount');
+    const hasLiked = UserInteractionSystem.hasInteracted(currentPost.id, 'like');
+    
+    if (hasLiked) {
+        // 取消点赞
+        UserInteractionSystem.removeInteraction(currentPost.id, 'like');
+        likeButton.classList.remove('active');
+        likeCount.textContent = Math.max(0, parseInt(likeCount.textContent) - 1);
+    } else {
+        // 添加点赞
+        UserInteractionSystem.logInteraction(currentPost.id, 'like');
+        likeButton.classList.add('active');
+        likeCount.textContent = parseInt(likeCount.textContent) + 1;
+    }
+}
+
+function toggleFavorite() {
+    const favoriteButton = document.getElementById('favoriteButton');
+    const favoriteCount = document.getElementById('favoriteCount');
+    const hasFavorited = UserInteractionSystem.hasInteracted(currentPost.id, 'favorite');
+    
+    if (hasFavorited) {
+        // 取消收藏
+        UserInteractionSystem.removeInteraction(currentPost.id, 'favorite');
+        favoriteButton.classList.remove('active');
+        favoriteCount.textContent = Math.max(0, parseInt(favoriteCount.textContent) - 1);
+    } else {
+        // 添加收藏
+        UserInteractionSystem.logInteraction(currentPost.id, 'favorite');
+        favoriteButton.classList.add('active');
+        favoriteCount.textContent = parseInt(favoriteCount.textContent) + 1;
+    }
+}
+
+function updateCommentCount() {
+    const commentCount = document.getElementById('commentCount');
+    if (currentPost.comments) {
+        commentCount.textContent = currentPost.comments.length;
+    } else {
+        commentCount.textContent = '0';
+    }
+}
+
+
+function markAsAI(isAI) {
+    UserInteractionSystem.logInteraction(currentPost.id, 'ai_check', { isAI: isAI });
+    
+    // 更新 AI 判断按钮的视觉效果
+    const aiButtons = document.querySelectorAll('.ai-check button');
+    aiButtons.forEach(button => {
+        const isYesButton = button.getAttribute('onclick') === 'markAsAI(true)';
+        if ((isYesButton && isAI) || (!isYesButton && !isAI)) {
+            button.classList.add('selected');
+        } else {
+            button.classList.remove('selected');
+        }
+    });
+    
+    alert('感谢你的反馈！');
+}
+
+
+
+        function focusComment() {
+            document.getElementById('commentInput').focus();
+        }
+
+        function toggleCommentLike(commentId) {
+    let comment = findComment(commentId);
+    if (!comment) return;
+
+    const commentElement = document.querySelector(`[data-comment-id="${commentId}"]`);
+    if (!commentElement) return;
+
+    const likeButton = commentElement.querySelector('.comment-action-btn');
+    const likesCount = commentElement.querySelector('.comment-likes-count');
+    
+    if (!comment.userLiked) {
+        comment.userLiked = true;
+        comment.likes = (comment.likes || 0) + 1;
+        likeButton.classList.add('liked');
+    } else {
+        comment.userLiked = false;
+        comment.likes = Math.max(0, (comment.likes || 0) - 1);
+        likeButton.classList.remove('liked');
+    }
+    
+    likesCount.textContent = comment.likes;
+
+    // 更新存储
+    saveCurrentPost();
+}
+
+function saveCurrentPost() {
+    const category = sessionStorage.getItem('selectedCategory');
+    let posts = JSON.parse(localStorage.getItem('posts'));
+    if (posts && category) {
+        const postIndex = posts[category].findIndex(post => post.id === currentPost.id);
+        if (postIndex !== -1) {
+            posts[category][postIndex] = currentPost;
+            localStorage.setItem('posts', JSON.stringify(posts));
+            sessionStorage.setItem('currentPost', JSON.stringify(currentPost));
+        }
+    }
+}
+
+// 获取当前帖子的会话统计数据
+function getPostSessionStats(postId) {
+    const interactions = JSON.parse(localStorage.getItem('userInteractions')) || [];
+    const postInteractions = interactions.filter(i => i.postId === postId);
+    
+    return {
+        likes: new Set(postInteractions.filter(i => i.interactionType === 'like').map(i => i.userId)).size,
+        favorites: new Set(postInteractions.filter(i => i.interactionType === 'favorite').map(i => i.userId)).size,
+        comments: postInteractions.filter(i => i.interactionType === 'comment').length
+    };
+}
+// 检查当前用户的交互状态
+function getCurrentUserInteractions(postId) {
+    const userId = sessionStorage.getItem('userId');
+    const interactions = JSON.parse(localStorage.getItem('userInteractions')) || [];
+    return {
+        hasLiked: interactions.some(i => i.userId === userId && i.postId === postId && i.interactionType === 'like'),
+        hasFavorited: interactions.some(i => i.userId === userId && i.postId === postId && i.interactionType === 'favorite')
+    };
+}
+
+// 处理点赞
+function handleLike(postId) {
+    const userStatus = getCurrentUserInteractions(postId);
+    if (!userStatus.hasLiked) {
+        UserInteractionSystem.logInteraction(postId, 'like');
+        updatePostStats();
+    }
+}
+
+// 处理收藏
+function handleFavorite(postId) {
+    const userStatus = getCurrentUserInteractions(postId);
+    if (!userStatus.hasFavorited) {
+        UserInteractionSystem.logInteraction(postId, 'favorite');
+        updatePostStats();
+    }
+}
+
+// 处理评论
+function handleComment(postId, commentText) {
+    if (commentText.trim()) {
+        UserInteractionSystem.logInteraction(postId, 'comment', {
+            text: commentText
+        });
+        updatePostStats();
+        // 清空评论输入框
+        document.getElementById('commentInput').value = '';
+    }
+}
+
+// 更新帖子统计数据显示
+function updatePostStats() {
+    const post = JSON.parse(sessionStorage.getItem('currentPost'));
+    const stats = getPostSessionStats(post.id);
+    const userStatus = getCurrentUserInteractions(post.id);
+
+    // 更新统计显示
+    document.getElementById('likeCount').textContent = stats.likes;
+    document.getElementById('favoriteCount').textContent = stats.favorites;
+    document.getElementById('commentCount').textContent = stats.comments;
+
+    // 更新按钮状态
+    document.getElementById('likeButton').classList.toggle('active', userStatus.hasLiked);
+    document.getElementById('favoriteButton').classList.toggle('active', userStatus.hasFavorited);
+}
+window.onload = function() {
+    try {
+        console.log('Page loading...'); // 调试信息
+        
+        // 检查 sessionStorage 中的数据
+        console.log('SessionStorage data:', {
+            currentPost: sessionStorage.getItem('currentPost'),
+            selectedCategory: sessionStorage.getItem('selectedCategory'),
+            userId: sessionStorage.getItem('userId')
+        });
+
+        UserInteractionSystem.generateUserId();
+        
+        // 加载帖子数据
+        loadPost();
+
+        // 记录查看详情的交互
+        const post = JSON.parse(sessionStorage.getItem('currentPost'));
+        if (post) {
+            UserInteractionSystem.logInteraction(post.id, 'view_detail');
+            console.log('View interaction logged for post:', post.id);
+        } else {
+            console.error('No post data available for interaction logging');
+        }
+    } catch (error) {
+        console.error('Error during page initialization:', error);
+    }
+};
+
+
+    </script>
+</body>
+</html>
