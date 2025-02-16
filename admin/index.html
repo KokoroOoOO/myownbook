@@ -451,6 +451,31 @@
         }
     }
     </style>
+    <!-- 添加 Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.x.x/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.x.x/firebase-database.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-analytics.js";
+        import { getDatabase } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCUp72tIZBypw-HgVhVQWN88egtH4uyuL0",
+            authDomain: "redbook-31e18.firebaseapp.com", 
+            projectId: "redbook-31e18",
+            storageBucket: "redbook-31e18.firebasestorage.app",
+            messagingSenderId: "568218518846",
+            appId: "1:568218518846:web:aaa8eb53765749b856d86f",
+            measurementId: "G-WGQS7TLVTT"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const db = getDatabase(app);
+        
+        // 导出数据库引用供其他脚本使用
+        window.db = db;
+    </script>
 </head>
 <body>
     <div class="container">
@@ -671,8 +696,24 @@ function exportData() {
 function importData(file) {
     const reader = new FileReader();
     reader.onload = function(e) {
-        localStorage.setItem('posts', e.target.result);
-        location.reload();
+        try {
+            const posts = JSON.parse(e.target.result);
+            
+            // 验证和修复所有帖子的图片URL
+            Object.keys(posts).forEach(category => {
+                posts[category].forEach(post => {
+                    post.image = validateImageUrl(post.image);
+                    // 确保content中的换行符是<br>格式
+                    post.content = post.content.replace(/\n/g, '<br>');
+                });
+            });
+            
+            localStorage.setItem('posts', JSON.stringify(posts));
+            location.reload();
+        } catch (error) {
+            console.error('导入数据失败:', error);
+            alert('导入失败，请检查文件格式');
+        }
     };
     reader.readAsText(file);
 }
@@ -880,11 +921,20 @@ document.addEventListener('click', function(e) {
 function savePosts() {
     try {
         const posts = JSON.parse(localStorage.getItem('posts')) || {};
-        // ... 保存操作
+        
+        // 处理所有帖子的图片URL
+        Object.keys(posts).forEach(category => {
+            posts[category].forEach(post => {
+                post.image = validateImageUrl(post.image);
+                // 处理换行符,将\n转换为<br>
+                post.content = post.content.replace(/\n/g, '<br>');
+            });
+        });
+        
         localStorage.setItem('posts', JSON.stringify(posts));
         return true;
     } catch (error) {
-        console.error('保存帖子时出错:', error);
+        console.error('保存失败:', error);
         alert('保存失败，请重试');
         return false;
     }
@@ -1532,7 +1582,32 @@ function validatePost(postData) {
 
     return true;
 }
-// 保存编辑的函数
+// 初始化 Firebase
+// 已经在上面声明了 firebaseConfig 和初始化了 Firebase
+
+// 保存帖子的函数
+async function savePosts() {
+    try {
+        const posts = JSON.parse(localStorage.getItem('posts')) || {};
+        // 同步到 Firebase
+        await db.ref('posts').set(posts);
+        // 同时保存到本地
+        localStorage.setItem('posts', JSON.stringify(posts));
+        
+        // 添加更新时间戳
+        const timestamp = new Date().toISOString();
+        await db.ref('lastUpdate').set(timestamp);
+        localStorage.setItem('lastUpdate', timestamp);
+        
+        return true;
+    } catch (error) {
+        console.error('保存失败:', error);
+        alert('保存失败，请重试');
+        return false;
+    }
+}
+
+// 修改编辑帖子的保存函数
 async function saveEdit(category, postId, form) {
     try {
         const posts = JSON.parse(localStorage.getItem('posts')) || {};
@@ -1591,6 +1666,18 @@ async function saveEdit(category, postId, form) {
         // 保存到 localStorage
         localStorage.setItem('posts', JSON.stringify(posts));
         
+        // 同步到 Firebase
+        await db.ref(`posts/${category}`).set(posts[category]);
+        
+        // 更新时间戳
+        const timestamp = new Date().toISOString();
+        await db.ref('lastUpdate').set(timestamp);
+        
+        // 添加更新时间戳
+        const updates = JSON.parse(localStorage.getItem('postUpdates')) || {};
+        updates[postId] = new Date().toISOString();
+        localStorage.setItem('postUpdates', JSON.stringify(updates));
+        
         // 调试输出
         console.log('Saved post:', updatedPost);
         console.log('Updated posts:', posts);
@@ -1628,6 +1715,23 @@ window.onload = function() {
         oldModal.remove();
     }
 };
+
+// 添加图片URL验证函数
+function validateImageUrl(url) {
+    // 如果是相对路径,添加完整域名
+    if(url.startsWith('/')) {
+        return window.location.origin + url;
+    }
+    // 如果是完整URL但缺少协议,添加https
+    if(url.startsWith('//')) {
+        return 'https:' + url;
+    }
+    // 如果完全没有协议,添加https://
+    if(!url.startsWith('http')) {
+        return 'https://' + url;
+    }
+    return url;
+}
 </script>
 </body>
 </html>

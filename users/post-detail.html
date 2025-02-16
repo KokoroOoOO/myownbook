@@ -185,6 +185,27 @@
 }
 
     </style>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-analytics.js";
+        import { getDatabase } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCUp72tIZBypw-HgVVQWN88egtH4uyuL0",
+            authDomain: "redbook-31e18.firebaseapp.com",
+            projectId: "redbook-31e18",
+            storageBucket: "redbook-31e18.firebasestorage.app",
+            messagingSenderId: "568218518846",
+            appId: "1:568218518846:web:aaa8eb53765749b856d86f",
+            measurementId: "G-WGQS7TLVTT"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const db = getDatabase(app);
+        
+        window.db = db;
+    </script>
 </head>
 <body>
     <div class="container">
@@ -227,21 +248,33 @@
         return sessionStorage.getItem('userId');
     },
 
-    logInteraction: function(postId, interactionType, details = {}) {
-        const userId = this.generateUserId();
-        const userGroup = sessionStorage.getItem('userGroup');
-        const interaction = {
-            userId,
-            userGroup,
-            postId,
-            interactionType,
-            details,
-            timestamp: new Date().toISOString()
-        };
+    logInteraction: async function(postId, interactionType, details = {}) {
+        try {
+            if (!window.db) {
+                console.error('Firebase not initialized');
+                return;
+            }
 
-        let interactions = JSON.parse(localStorage.getItem('userInteractions')) || [];
-        interactions.push(interaction);
-        localStorage.setItem('userInteractions', JSON.stringify(interactions));
+            const interaction = {
+                userId: this.generateUserId(),
+                userGroup: sessionStorage.getItem('userGroup'),
+                postId,
+                interactionType,
+                details,
+                timestamp: new Date().toISOString()
+            };
+
+            // 使用 ref 和 set 替代直接访问
+            const interactionRef = window.dbRef(window.db, `interactions/${Date.now()}`);
+            await window.dbSet(interactionRef, interaction);
+            
+            // 本地存储
+            let interactions = JSON.parse(localStorage.getItem('userInteractions')) || [];
+            interactions.push(interaction);
+            localStorage.setItem('userInteractions', JSON.stringify(interactions));
+        } catch (error) {
+            console.error('保存交互数据失败:', error);
+        }
     },
 
     hasInteracted: function(postId, interactionType) {
@@ -277,15 +310,19 @@
         }
 
         const postContent = document.getElementById('postContent');
+        const imageUrl = validateImageUrl(currentPost.image);
+        
+        // 处理换行显示
+        const displayContent = currentPost.content.replace(/<br>/g, '\n');
         
         postContent.innerHTML = `
-            <img src="${currentPost.image || ''}" class="post-image" alt="帖子图片" onerror="this.src='https://via.placeholder.com/400'">
+            <img src="${imageUrl}" class="post-image" alt="帖子图片" onerror="this.src='https://via.placeholder.com/400'">
             <div class="author-info">
                 <img src="${currentPost.authorAvatar || 'https://via.placeholder.com/40'}" class="author-avatar" alt="作者头像">
                 <span>${currentPost.author || '匿名用户'}</span>
             </div>
             <h1>${currentPost.title || '无标题'}</h1>
-            <p>${currentPost.content || '无内容'}</p>
+            <p style="white-space: pre-line;">${displayContent}</p>
         `;
 
         // 更新点赞和收藏数
@@ -299,6 +336,20 @@
     }
 }
 
+// 添加图片URL验证函数
+function validateImageUrl(url) {
+    if(!url) return 'https://via.placeholder.com/400';
+    if(url.startsWith('/')) {
+        return window.location.origin + url;
+    }
+    if(url.startsWith('//')) {
+        return 'https:' + url;
+    }
+    if(!url.startsWith('http')) {
+        return 'https://' + url;
+    }
+    return url;
+}
 
     
 
@@ -650,17 +701,38 @@ function markAsAI(isAI) {
 }
 
 function saveCurrentPost() {
-    const category = sessionStorage.getItem('selectedCategory');
-    let posts = JSON.parse(localStorage.getItem('posts'));
-    if (posts && category) {
-        const postIndex = posts[category].findIndex(post => post.id === currentPost.id);
-        if (postIndex !== -1) {
-            posts[category][postIndex] = currentPost;
-            localStorage.setItem('posts', JSON.stringify(posts));
-            sessionStorage.setItem('currentPost', JSON.stringify(currentPost));
+    // 不再直接修改帖子数据
+    const interactionData = {
+        postId: currentPost.id,
+        userId: UserInteractionSystem.generateUserId(),
+        timestamp: new Date().toISOString(),
+        likes: parseInt(document.getElementById('likeCount').textContent),
+        favorites: parseInt(document.getElementById('favoriteCount').textContent),
+        comments: currentPost.comments
+    };
+
+    // 存储交互数据
+    let interactions = JSON.parse(localStorage.getItem('postInteractions')) || [];
+    interactions.push(interactionData);
+    localStorage.setItem('postInteractions', JSON.stringify(interactions));
+}
+
+function checkForUpdates() {
+    const updates = JSON.parse(localStorage.getItem('postUpdates')) || {};
+    const lastCheck = localStorage.getItem('lastUpdateCheck') || '0';
+    
+    for (let postId in updates) {
+        if (updates[postId] > lastCheck) {
+            loadPost(); // 重新加载帖子数据
+            break;
         }
     }
+    
+    localStorage.setItem('lastUpdateCheck', new Date().toISOString());
 }
+
+// 定期检查更新
+setInterval(checkForUpdates, 30000); // 每30秒检查一次
 
 // 获取当前帖子的会话统计数据
 function getPostSessionStats(postId) {
@@ -728,33 +800,19 @@ function updatePostStats() {
     document.getElementById('likeButton').classList.toggle('active', userStatus.hasLiked);
     document.getElementById('favoriteButton').classList.toggle('active', userStatus.hasFavorited);
 }
+// 确保 Firebase 初始化完成后再执行
 window.onload = function() {
-    try {
-        console.log('Page loading...'); // 调试信息
-        
-        // 检查 sessionStorage 中的数据
-        console.log('SessionStorage data:', {
-            currentPost: sessionStorage.getItem('currentPost'),
-            selectedCategory: sessionStorage.getItem('selectedCategory'),
-            userId: sessionStorage.getItem('userId')
-        });
-
-        UserInteractionSystem.generateUserId();
-        
-        // 加载帖子数据
-        loadPost();
-
-        // 记录查看详情的交互
-        const post = JSON.parse(sessionStorage.getItem('currentPost'));
-        if (post) {
-            UserInteractionSystem.logInteraction(post.id, 'view_detail');
-            console.log('View interaction logged for post:', post.id);
-        } else {
-            console.error('No post data available for interaction logging');
+    const checkFirebase = setInterval(() => {
+        if (window.db) {
+            clearInterval(checkFirebase);
+            loadPost();
+            
+            const post = JSON.parse(sessionStorage.getItem('currentPost'));
+            if (post) {
+                UserInteractionSystem.logInteraction(post.id, 'view_detail');
+            }
         }
-    } catch (error) {
-        console.error('Error during page initialization:', error);
-    }
+    }, 100);
 };
 
 

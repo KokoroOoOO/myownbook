@@ -246,6 +246,27 @@
 
 
     </style>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-analytics.js";
+        import { getDatabase } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyCUp72tIZBypw-HgVhVQWN88egtH4uyuL0",
+            authDomain: "redbook-31e18.firebaseapp.com",
+            projectId: "redbook-31e18",
+            storageBucket: "redbook-31e18.firebasestorage.app",
+            messagingSenderId: "568218518846",
+            appId: "1:568218518846:web:aaa8eb53765749b856d86f",
+            measurementId: "G-WGQS7TLVTT"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+        const db = getDatabase(app);
+        
+        window.db = db;
+    </script>
 </head>
 <body>
     <div class="container">
@@ -415,8 +436,58 @@
             analyzeData();
         };
 
-        function analyzeData() {
-            const interactions = JSON.parse(localStorage.getItem('userInteractions')) || [];
+        async function analyzeData() {
+            try {
+                if (!window.db) {
+                    console.error('Firebase not initialized');
+                    return;
+                }
+
+                // 使用 ref 和 onValue 替代直接访问
+                const interactionsRef = window.dbRef(window.db, 'interactions');
+                window.dbOnValue(interactionsRef, (snapshot) => {
+                    const interactions = Object.values(snapshot.val() || {});
+                    localStorage.setItem('userInteractions', JSON.stringify(interactions));
+                    updateAnalytics(interactions);
+                });
+            } catch (error) {
+                console.error('加载分析数据失败:', error);
+            }
+        }
+
+        // 确保 Firebase 初始化完成后再执行
+        window.onload = function() {
+            const checkFirebase = setInterval(() => {
+                if (window.db) {
+                    clearInterval(checkFirebase);
+                    analyzeData();
+                }
+            }, 100);
+        };
+
+        async function analyzeData() {
+            try {
+                // 从 Firebase 获取所有交互数据
+                const snapshot = await db.ref('interactions').once('value');
+                const interactions = Object.values(snapshot.val() || {});
+                
+                // 更新本地存储
+                localStorage.setItem('userInteractions', JSON.stringify(interactions));
+                
+                // 更新分析显示
+                updateAnalytics(interactions);
+            } catch (error) {
+                console.error('加载分析数据失败:', error);
+            }
+        }
+
+        // 添加实时更新
+        db.ref('interactions').on('value', (snapshot) => {
+            const interactions = Object.values(snapshot.val() || {});
+            updateAnalytics(interactions);
+        });
+
+        function updateAnalytics(interactions) {
             const users = new Set(interactions.map(i => i.userId));
 
             // 更新总体统计
@@ -862,7 +933,6 @@ function exportAsLatex(data) {
         latexContent += '\\begin{table}[htbp]\n\\centering\n';
         
         if (Array.isArray(content)) {
-            // 处理数组类型数据
             const headers = Object.keys(content[0] || {});
             latexContent += '\\begin{tabular}{|' + 'c|'.repeat(headers.length) + '}\n\\hline\n';
             latexContent += headers.join(' & ') + ' \\\\\n\\hline\n';
@@ -871,7 +941,6 @@ function exportAsLatex(data) {
                 latexContent += headers.map(h => row[h]).join(' & ') + ' \\\\\n';
             });
         } else {
-            // 处理对象类型数据
             latexContent += '\\begin{tabular}{|l|c|}\n\\hline\n';
             latexContent += '指标 & 数值 \\\\\n\\hline\n';
             
@@ -881,7 +950,7 @@ function exportAsLatex(data) {
         }
         
         latexContent += '\\hline\n\\end{tabular}\n';
-        latexContent += `\\caption{${type}}\n\\end{table}\n\n`;
+        latexContent += `\\caption{${type}}\n\\end{table}\n\n`;  // 修复这一行的引号问题
     });
     
     downloadFile(latexContent, 'interaction_data.tex', 'text/plain');
