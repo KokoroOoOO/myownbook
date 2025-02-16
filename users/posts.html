@@ -125,7 +125,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-analytics.js";
-        import { getDatabase } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-database.js";
+        import { getDatabase, ref, onValue, get } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-database.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCUp72tIZBypw-HgVhVQWN88egtH4uyuL0",
@@ -137,11 +137,18 @@
             measurementId: "G-WGQS7TLVTT"
         };
 
+        // 初始化 Firebase
         const app = initializeApp(firebaseConfig);
         const analytics = getAnalytics(app);
-        const db = getDatabase(app);
-        
-        window.db = db;
+        const database = getDatabase(app);
+
+        // 导出到全局作用域
+        window.firebaseDB = {
+            db: database,
+            ref: ref,
+            onValue: onValue,
+            get: get
+        };
     </script>
 </head>
 <body>
@@ -173,21 +180,36 @@ const postsData = JSON.parse(localStorage.getItem('posts')) || {
 
 async function loadPosts(category, userGroup) {
     try {
-        if (!window.db) {
-            console.error('Firebase not initialized');
-            return;
-        }
-
-        // 使用 ref 和 onValue 替代直接访问
-        const postsRef = window.dbRef(window.db, 'posts');
-        window.dbOnValue(postsRef, (snapshot) => {
-            const posts = snapshot.val() || {};
-            localStorage.setItem('posts', JSON.stringify(posts));
-            const categoryPosts = posts[category] || [];
+        console.log('Loading posts for category:', category, 'userGroup:', userGroup); // 调试日志
+        
+        // 首先尝试从 localStorage 加载数据
+        let posts = JSON.parse(localStorage.getItem('posts')) || {};
+        let categoryPosts = posts[category] || [];
+        
+        if (categoryPosts.length > 0) {
+            console.log('Found posts in localStorage:', categoryPosts.length);
             displayPosts(categoryPosts, userGroup);
-        });
+        }
+        
+        // 然后从 Firebase 加载最新数据
+        if (window.firebaseDB) {
+            const postsRef = window.firebaseDB.ref(window.firebaseDB.db, `posts/${category}`);
+            window.firebaseDB.onValue(postsRef, (snapshot) => {
+                const firebasePosts = snapshot.val() || [];
+                console.log('Loaded posts from Firebase:', firebasePosts.length);
+                
+                // 更新 localStorage
+                posts[category] = firebasePosts;
+                localStorage.setItem('posts', JSON.stringify(posts));
+                
+                // 显示帖子
+                displayPosts(firebasePosts, userGroup);
+            });
+        } else {
+            console.error('Firebase not properly initialized');
+        }
     } catch (error) {
-        console.error('加载帖子失败:', error);
+        console.error('Error loading posts:', error);
     }
 }
 
@@ -195,7 +217,7 @@ async function loadPosts(category, userGroup) {
 window.onload = function() {
     // 等待 Firebase 初始化
     const checkFirebase = setInterval(() => {
-        if (window.db) {
+        if (window.firebaseDB) {
             clearInterval(checkFirebase);
             const category = sessionStorage.getItem('selectedCategory');
             const userGroup = sessionStorage.getItem('userGroup');
@@ -210,17 +232,24 @@ window.onload = function() {
 };
 
 // 添加实时更新监听
-db.ref('lastUpdate').on('value', async (snapshot) => {
-    const lastUpdate = snapshot.val();
-    const localUpdate = localStorage.getItem('lastUpdate');
-    
-    if (lastUpdate !== localUpdate) {
-        // 有新更新，重新加载帖子
-        const category = sessionStorage.getItem('selectedCategory');
-        const userGroup = sessionStorage.getItem('userGroup');
-        await loadPosts(category, userGroup);
+function setupUpdateListener() {
+    if (window.firebaseDB) {
+        const updateRef = window.firebaseDB.ref(window.firebaseDB.db, 'lastUpdate');
+        window.firebaseDB.onValue(updateRef, async (snapshot) => {
+            const lastUpdate = snapshot.val();
+            const localUpdate = localStorage.getItem('lastUpdate');
+            
+            if (lastUpdate !== localUpdate) {
+                const category = sessionStorage.getItem('selectedCategory');
+                const userGroup = sessionStorage.getItem('userGroup');
+                await loadPosts(category, userGroup);
+            }
+        });
     }
-});
+}
+
+// 在页面加载完成后设置更新监听
+document.addEventListener('DOMContentLoaded', setupUpdateListener);
 
 // 添加分类名称映射函数（如果还没有的话）
 function getCategoryName(category) {
