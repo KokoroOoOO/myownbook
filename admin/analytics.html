@@ -249,7 +249,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-analytics.js";
-        import { getDatabase } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-database.js";
+        import { getFirestore, collection, query, where, getDocs, onSnapshot, writeBatch } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyCUp72tIZBypw-HgVhVQWN88egtH4uyuL0",
@@ -263,9 +263,60 @@
 
         const app = initializeApp(firebaseConfig);
         const analytics = getAnalytics(app);
-        const db = getDatabase(app);
+        const db = getFirestore(app);
         
         window.db = db;
+
+        // 修改数据加载函数
+        async function analyzeData() {
+            try {
+                const interactionsCol = collection(db, 'interactions');
+                const querySnapshot = await getDocs(interactionsCol);
+                const interactions = [];
+                querySnapshot.forEach((doc) => {
+                    interactions.push(doc.data());
+                });
+                
+                updateAnalytics(interactions);
+            } catch (error) {
+                console.error('加载分析数据失败:', error);
+            }
+        }
+
+        // 修改数据加载函数
+        async function loadAnalyticsData() {
+            try {
+                // 实时监听交互数据
+                const interactionsRef = collection(db, 'interactions');
+                onSnapshot(interactionsRef, (snapshot) => {
+                    const interactions = [];
+                    snapshot.forEach((doc) => {
+                        interactions.push(doc.data());
+                    });
+                    updateAnalytics(interactions);
+                });
+            } catch (error) {
+                console.error('Failed to load analytics:', error);
+            }
+        }
+
+        // 修改数据删除函数
+        async function clearFilteredData(query) {
+            try {
+                const batch = writeBatch(db);
+                const snapshot = await getDocs(query);
+                
+                snapshot.forEach((doc) => {
+                    batch.delete(doc.ref);
+                });
+                
+                await batch.commit();
+                alert('数据已清除');
+            } catch (error) {
+                console.error('Failed to clear data:', error);
+                alert('清除失败，请重试');
+            }
+        }
     </script>
 </head>
 <body>

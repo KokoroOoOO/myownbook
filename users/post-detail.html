@@ -187,8 +187,7 @@
     </style>
     <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-app.js";
-    import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-analytics.js";
-    import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-database.js";
+    import { getFirestore, collection, doc, setDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-firestore.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyCUp72tIZBypw-HgVhVQWN88egtH4uyuL0",
@@ -201,24 +200,23 @@
         measurementId: "G-WGQS7TLVTT"
     };
 
-    // 初始化 Firebase
     const app = initializeApp(firebaseConfig);
-    const analytics = getAnalytics(app);
-    const database = getDatabase(app);
+    const db = getFirestore(app);
 
     // 导出到全局作用域
-    window.firebaseDB = {
-        db: database,
-        ref: ref,
-        onValue: onValue,
-        set: set
+    window.firestoreDB = {
+        db,
+        collection,
+        doc,
+        setDoc,
+        onSnapshot,
+        updateDoc
     };
 
-    // 确保 Firebase 初始化完成后加载帖子
     window.addEventListener('DOMContentLoaded', function() {
-        const checkFirebase = setInterval(() => {
-            if (window.firebaseDB) {
-                clearInterval(checkFirebase);
+        const checkFirestore = setInterval(() => {
+            if (window.firestoreDB) {
+                clearInterval(checkFirestore);
                 loadPost();
             }
         }, 100);

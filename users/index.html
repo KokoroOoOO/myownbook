@@ -533,6 +533,45 @@ function shuffleArray(array) {
     return array.sort(() => Math.random() - 0.5);
 }
     </script>
+    <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-app.js";
+    import { getFirestore, collection, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+        // ...existing code...
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // 导出到全局作用域
+    window.firestoreDB = {
+        db,
+        collection,
+        doc,
+        setDoc
+    };
+
+    const interactionsCollection = collection(db, 'interactions');
+    
+    // 修改用户交互系统
+    UserInteractionSystem.logInteraction = async function(category, interactionType, details = {}) {
+        const interaction = {
+            userId: this.generateUserId(),
+            userGroup: sessionStorage.getItem('userGroup'),
+            category,
+            interactionType,
+            details,
+            timestamp: new Date().toISOString()
+        };
+
+        try {
+            await setDoc(doc(interactionsCollection), interaction);
+        } catch (error) {
+            console.error('保存交互数据失败:', error);
+        }
+    };
+</script>
 </body>
 </html>
 

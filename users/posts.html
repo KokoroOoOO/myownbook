@@ -123,34 +123,96 @@
 }
     </style>
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-app.js";
-        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-analytics.js";
-        import { getDatabase, ref, onValue, get } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-database.js";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-app.js";
+    import { getFirestore, collection, getDocs, doc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-firestore.js";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyCUp72tIZBypw-HgVhVQWN88egtH4uyuL0",
-            authDomain: "redbook-31e18.firebaseapp.com",
-            projectId: "redbook-31e18",
-            storageBucket: "redbook-31e18.firebasestorage.app",
-            messagingSenderId: "568218518846",
-            appId: "1:568218518846:web:aaa8eb53765749b856d86f",
-            measurementId: "G-WGQS7TLVTT",
-            databaseURL: "https://redbook-31e18-default-rtdb.firebaseio.com" // 添加这行
+    const firebaseConfig = {
+        apiKey: "AIzaSyCUp72tIZBypw-HgVhVQWN88egtH4uyuL0",
+        authDomain: "redbook-31e18.firebaseapp.com",
+        projectId: "redbook-31e18",
+        storageBucket: "redbook-31e18.firebasestorage.app",
+        messagingSenderId: "568218518846",
+        appId: "1:568218518846:web:aaa8eb53765749b856d86f",
+        measurementId: "G-WGQS7TLVTT"
+    };
+
+    // 初始化 Firebase 和 Firestore
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    // 导出到全局作用域
+    window.firestore = {
+        db,
+        collection,
+        getDocs,
+        doc,
+        onSnapshot
+    };
+</script>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-app.js";
+    import { getFirestore, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-firestore.js";
+
+    // 修改加载帖子函数
+    async function loadPosts(category, userGroup) {
+        try {
+            const postsQuery = query(
+                collection(db, 'posts'), 
+                where('category', '==', category)
+            );
+            
+            // 实时监听帖子变化
+            onSnapshot(postsQuery, (snapshot) => {
+                const posts = [];
+                snapshot.forEach((doc) => {
+                    posts.push({
+                        id: doc.id,
+                        ...doc.data()
+                    });
+                });
+                displayPosts(posts, userGroup);
+            });
+        } catch (error) {
+            console.error('Error loading posts:', error);
+        }
+    }
+
+    // 修改用户交互记录
+    UserInteractionSystem.logInteraction = async function(postId, interactionType, details = {}) {
+        const interaction = {
+            userId: this.generateUserId(),
+            userGroup: sessionStorage.getItem('userGroup'),
+            postId,
+            interactionType,
+            details,
+            timestamp: new Date().toISOString()
         };
 
-        // 初始化 Firebase
-        const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app);
-        const database = getDatabase(app);
+        try {
+            const interactionsCol = collection(db, 'interactions');
+            await setDoc(doc(interactionsCol), interaction);
+        } catch (error) {
+            console.error('保存交互数据失败:', error);
+        }
+    };
 
-        // 导出到全局作用域
-        window.firebaseDB = {
-            db: database,
-            ref: ref,
-            onValue: onValue,
-            get: get
-        };
-    </script>
+    // 添加用户交互记录函数
+    async function logInteraction(postId, type, data = {}) {
+        try {
+            const interactionRef = collection(db, 'interactions');
+            await addDoc(interactionRef, {
+                postId,
+                userId: UserInteractionSystem.generateUserId(),
+                userGroup: sessionStorage.getItem('userGroup'),
+                type,
+                data,
+                timestamp: serverTimestamp()
+            });
+        } catch (error) {
+            console.error('Failed to log interaction:', error);
+        }
+    }
+</script>
 </head>
 <body>
     <div class="container" id="postsContainer">
@@ -181,34 +243,33 @@ const postsData = JSON.parse(localStorage.getItem('posts')) || {
 
 async function loadPosts(category, userGroup) {
     try {
-        console.log('Loading posts for category:', category, 'userGroup:', userGroup); // 调试日志
+        console.log('Loading posts for category:', category, 'userGroup:', userGroup);
         
-        // 首先尝试从 localStorage 加载数据
-        let posts = JSON.parse(localStorage.getItem('posts')) || {};
-        let categoryPosts = posts[category] || [];
-        
-        if (categoryPosts.length > 0) {
-            console.log('Found posts in localStorage:', categoryPosts.length);
-            displayPosts(categoryPosts, userGroup);
+        if (!window.firestore) {
+            console.error('Firestore not initialized');
+            return;
         }
+
+        // 从 Firestore 加载数据
+        const postsRef = collection(window.firestore.db, 'posts');
+        const querySnapshot = await getDocs(postsRef);
         
-        // 然后从 Firebase 加载最新数据
-        if (window.firebaseDB) {
-            const postsRef = window.firebaseDB.ref(window.firebaseDB.db, `posts/${category}`);
-            window.firebaseDB.onValue(postsRef, (snapshot) => {
-                const firebasePosts = snapshot.val() || [];
-                console.log('Loaded posts from Firebase:', firebasePosts.length);
-                
-                // 更新 localStorage
-                posts[category] = firebasePosts;
-                localStorage.setItem('posts', JSON.stringify(posts));
-                
-                // 显示帖子
-                displayPosts(firebasePosts, userGroup);
-            });
-        } else {
-            console.error('Firebase not properly initialized');
-        }
+        // 转换数据格式
+        const posts = [];
+        querySnapshot.forEach((doc) => {
+            const post = doc.data();
+            post.id = doc.id; // 添加文档ID
+            posts.push(post);
+        });
+
+        // 过滤当前分类的帖子
+        const categoryPosts = posts.filter(post => post.category === category);
+        
+        console.log('Loaded posts:', categoryPosts.length);
+        
+        // 显示帖子
+        displayPosts(categoryPosts, userGroup);
+
     } catch (error) {
         console.error('Error loading posts:', error);
     }

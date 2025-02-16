@@ -471,11 +471,80 @@
 
         const app = initializeApp(firebaseConfig);
         const analytics = getAnalytics(app);
-        const db = getDatabase(app);
+        const database = getDatabase(app);
         
         // 导出数据库引用供其他脚本使用
-        window.db = db;
+        window.db = database;
     </script>
+    <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-app.js";
+    import { getFirestore, collection, doc, setDoc, deleteDoc, query, getDocs, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-firestore.js";
+
+    // const firebaseConfig = { ...existing code... };
+
+    const firestoreApp = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    
+    // 导出到全局作用域
+    window.firestoreDB = {
+        db,
+        collection,
+        doc,
+        setDoc,
+        deleteDoc,
+        query,
+        getDocs,
+        updateDoc,
+        serverTimestamp
+    };
+
+    // 修改保存帖子的函数
+    async function savePost(postData) {
+        try {
+            const postsRef = collection(db, 'posts');
+            await setDoc(doc(postsRef), {
+                ...postData,
+                lastUpdated: serverTimestamp()
+            });
+            
+            return true;
+        } catch (error) {
+            console.error('保存失败:', error);
+            alert('保存失败，请重试');
+            return false;
+        }
+    }
+
+    // 修改编辑帖子的保存函数
+    async function saveEdit(category, postId, formData) {
+        try {
+            const postRef = doc(db, 'posts', postId);
+            await updateDoc(postRef, {
+                ...formData,
+                lastUpdated: serverTimestamp()
+            });
+            
+            return true;
+        } catch (error) {
+            console.error('更新失败:', error);
+            alert('更新失败，请重试');
+            return false;
+        }
+    }
+
+    // 修改删除帖子函数
+    async function deletePost(postId) {
+        if (confirm('确定要删除这篇帖子吗？')) {
+            try {
+                await deleteDoc(doc(db, 'posts', postId));
+                displayPosts(); // 重新加载帖子列表
+            } catch (error) {
+                console.error('删除失败:', error);
+                alert('删除失败，请重试');
+            }
+        }
+    }
+</script>
 </head>
 <body>
     <div class="container">
