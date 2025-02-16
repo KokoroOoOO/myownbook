@@ -186,26 +186,88 @@
 
     </style>
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-app.js";
-        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-analytics.js";
-        import { getDatabase } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-database.js";
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-analytics.js";
+    import { getDatabase, ref, onValue, set } from "https://www.gstatic.com/firebasejs/11.3.1/firebase-database.js";
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyCUp72tIZBypw-HgVVQWN88egtH4uyuL0",
-            authDomain: "redbook-31e18.firebaseapp.com",
-            projectId: "redbook-31e18",
-            storageBucket: "redbook-31e18.firebasestorage.app",
-            messagingSenderId: "568218518846",
-            appId: "1:568218518846:web:aaa8eb53765749b856d86f",
-            measurementId: "G-WGQS7TLVTT"
-        };
+    const firebaseConfig = {
+        apiKey: "AIzaSyCUp72tIZBypw-HgVhVQWN88egtH4uyuL0",
+        authDomain: "redbook-31e18.firebaseapp.com",
+        projectId: "redbook-31e18",
+        databaseURL: "https://redbook-31e18-default-rtdb.firebaseio.com", // 添加这行
+        storageBucket: "redbook-31e18.firebasestorage.app",
+        messagingSenderId: "568218518846",
+        appId: "1:568218518846:web:aaa8eb53765749b856d86f",
+        measurementId: "G-WGQS7TLVTT"
+    };
 
-        const app = initializeApp(firebaseConfig);
-        const analytics = getAnalytics(app);
-        const db = getDatabase(app);
-        
-        window.db = db;
-    </script>
+    // 初始化 Firebase
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+    const database = getDatabase(app);
+
+    // 导出到全局作用域
+    window.firebaseDB = {
+        db: database,
+        ref: ref,
+        onValue: onValue,
+        set: set
+    };
+
+    // 确保 Firebase 初始化完成后加载帖子
+    window.addEventListener('DOMContentLoaded', function() {
+        const checkFirebase = setInterval(() => {
+            if (window.firebaseDB) {
+                clearInterval(checkFirebase);
+                loadPost();
+            }
+        }, 100);
+    });
+</script>
+
+<!-- 修改 loadPost 函数 -->
+<script>
+    function loadPost() {
+        try {
+            const post = JSON.parse(sessionStorage.getItem('currentPost'));
+            console.log('Loading post:', post); // 调试信息
+            
+            if (!post) {
+                console.error('No post data found');
+                return;
+            }
+
+            const postContent = document.getElementById('postContent');
+            const userGroup = sessionStorage.getItem('userGroup');
+            const displayContent = userGroup === 'A' ? post.contentA : post.contentB;
+            
+            postContent.innerHTML = `
+                <img src="${validateImageUrl(post.image)}" class="post-image" alt="${post.title}" onerror="this.src='https://via.placeholder.com/400'">
+                <div class="author-info">
+                    <img src="${validateImageUrl(post.authorAvatar)}" class="author-avatar" alt="作者头像">
+                    <span>${post.author || '匿名用户'}</span>
+                </div>
+                <h1>${post.title || '无标题'}</h1>
+                <p style="white-space: pre-line;">${displayContent || post.content || '无内容'}</p>
+            `;
+
+            // 更新互动数据
+            document.getElementById('likeCount').textContent = post.likes || 0;
+            document.getElementById('favoriteCount').textContent = post.favorites || 0;
+            document.getElementById('commentCount').textContent = post.comments?.length || 0;
+
+            // 加载评论
+            loadExistingComments();
+            
+            // 记录查看详情的交互
+            UserInteractionSystem.logInteraction(post.id, 'view_detail');
+            
+        } catch (error) {
+            console.error('Error loading post:', error);
+            alert('加载帖子失败，请返回重试');
+        }
+    }
+</script>
 </head>
 <body>
     <div class="container">
